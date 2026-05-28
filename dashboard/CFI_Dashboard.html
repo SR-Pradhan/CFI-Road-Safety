@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CFI Road Safety Dashboard — Bangalore Dashcam Analysis</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:      #0d1117;
+    --card:    #161b22;
+    --border:  #30363d;
+    --accent:  #4f46e5;
+    --accent2: #06b6d4;
+    --red:     #ef4444;
+    --orange:  #f97316;
+    --green:   #22c55e;
+    --yellow:  #eab308;
+    --text:    #e6edf3;
+    --muted:   #8b949e;
+    --font: 'Segoe UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
+
+  /* ── TOP BAR ── */
+  header {
+    background: linear-gradient(90deg, #1e1b4b 0%, #0d1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 28px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo { font-size: 20px; font-weight: 700; color: #fff; }
+  .logo span { color: var(--accent); }
+  .subtitle { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .load-btn {
+    background: var(--accent); color: #fff; border: none;
+    padding: 9px 18px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: opacity .2s;
+  }
+  .load-btn:hover { opacity: .85; }
+
+  /* ── MAIN LAYOUT ── */
+  main { padding: 24px 28px; display: grid; gap: 20px; }
+
+  /* ── METRIC CARDS ── */
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
+  .metric-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; position: relative; overflow: hidden;
+  }
+  .metric-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--c, var(--accent));
+  }
+  .metric-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
+  .metric-value { font-size: 32px; font-weight: 700; margin: 6px 0 2px; }
+  .metric-sub   { font-size: 11px; color: var(--muted); }
+
+  /* ── CHARTS ROW ── */
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 14px; }
+  .chart-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px;
+  }
+  .chart-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 14px; }
+  .chart-wrap  { position: relative; height: 220px; }
+
+  /* ── BOTTOM GRID ── */
+  .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  /* ── LOG PANELS ── */
+  .log-panel {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px;
+    max-height: 420px; overflow: hidden; display: flex; flex-direction: column;
+  }
+  .log-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .log-title  { font-size: 13px; font-weight: 600; }
+  .log-count  { font-size: 11px; color: var(--muted); background: #21262d; padding: 2px 8px; border-radius: 99px; }
+  .log-scroll { overflow-y: auto; flex: 1; }
+  .log-scroll::-webkit-scrollbar { width: 4px; }
+  .log-scroll::-webkit-scrollbar-track { background: transparent; }
+  .log-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .log-row {
+    display: grid; grid-template-columns: 80px 1fr auto; gap: 8px; align-items: center;
+    padding: 8px 6px; border-bottom: 1px solid #21262d; cursor: pointer; border-radius: 6px;
+    transition: background .15s;
+  }
+  .log-row:hover { background: #21262d; }
+  .log-ts   { font-size: 11px; color: var(--accent2); font-family: monospace; }
+  .log-type { font-size: 12px; }
+  .badge {
+    font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 99px;
+    text-transform: uppercase; letter-spacing: .4px;
+  }
+  .badge-red    { background:#450a0a; color:#f87171; }
+  .badge-orange { background:#431407; color:#fb923c; }
+  .badge-yellow { background:#422006; color:#fbbf24; }
+  .badge-blue   { background:#0c1a4a; color:#60a5fa; }
+  .badge-purple { background:#2e1065; color:#c084fc; }
+  .badge-teal   { background:#042f2e; color:#2dd4bf; }
+  .badge-green  { background:#052e16; color:#4ade80; }
+  .badge-cyan   { background:#0a2440; color:#67e8f9; }
+
+  /* ── DENSITY CHART ── */
+  .density-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px;
+    grid-column: 1/-1;
+  }
+
+  /* ── EMPTY STATE ── */
+  .empty {
+    text-align: center; color: var(--muted); padding: 60px 20px;
+    border: 1px dashed var(--border); border-radius: 12px;
+  }
+  .empty h3 { font-size: 16px; margin-bottom: 8px; color: var(--text); }
+
+  /* ── FILTER BAR ── */
+  .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .flt-btn {
+    font-size: 11px; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--border);
+    background: transparent; color: var(--muted); cursor: pointer; transition: all .15s;
+  }
+  .flt-btn.active { border-color: var(--accent); color: var(--accent); background: #1a1a3e; }
+
+  /* ── TOOLTIP ── */
+  #seek-tip {
+    position: fixed; bottom: 20px; right: 20px;
+    background: var(--accent); color: #fff; padding: 10px 16px; border-radius: 8px;
+    font-size: 12px; display: none; z-index: 100;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">Crash<span>free</span> India &nbsp;·&nbsp; Road Safety Dashboard</div>
+    <div class="subtitle" id="vid-name">Load a results JSON to begin</div>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;">
+    <span id="method-badge" style="font-size:11px;color:var(--muted);"></span>
+    <input type="file" id="file-input" accept=".json" style="display:none"/>
+    <button class="load-btn" onclick="document.getElementById('file-input').click()">📂 Load JSON</button>
+  </div>
+</header>
+
+<main id="main-content">
+  <div class="empty">
+    <h3>No data loaded</h3>
+    <p>Click "Load JSON" above and select the <code>results.json</code> generated by the pipeline.</p>
+    <p style="margin-top:8px;font-size:12px;">Or the dashboard auto-loads if <code>results.json</code> is in the same folder.</p>
+  </div>
+</main>
+
+<div id="seek-tip"></div>
+
+<script>
+// ── COLOUR MAP ──────────────────────────────────────────────────────────────
+const V_COLORS = {
+  helmet_less:   { badge: 'badge-red',    label: 'Helmet-less Riding',  hex: '#ef4444' },
+  wrong_side:    { badge: 'badge-orange', label: 'Wrong-side Driving',  hex: '#f97316' },
+  signal_jump:   { badge: 'badge-yellow', label: 'Signal Jumping',      hex: '#eab308' },
+  phone_use:     { badge: 'badge-blue',   label: 'Phone Use',           hex: '#3b82f6' },
+  triple_riding: { badge: 'badge-purple', label: 'Triple Riding',       hex: '#a855f7' },
+};
+const J_COLORS = {
+  T_JUNCTION:  { badge: 'badge-teal',   hex: '#14b8a6' },
+  X_JUNCTION:  { badge: 'badge-cyan',   hex: '#06b6d4' },
+  Y_JUNCTION:  { badge: 'badge-blue',   hex: '#3b82f6' },
+  ROUNDABOUT:  { badge: 'badge-green',  hex: '#22c55e' },
+  FLYOVER:     { badge: 'badge-orange', hex: '#f97316' },
+};
+const CAT_COLORS = { '2W':'#4f46e5', LMV:'#06b6d4', HMV:'#f97316', OTHER:'#8b949e' };
+
+let charts = {};
+
+// ── FILE LOADER ─────────────────────────────────────────────────────────────
+document.getElementById('file-input').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = ev => render(JSON.parse(ev.target.result));
+  reader.readAsText(f);
+});
+
+// ── RENDER ───────────────────────────────────────────────────────────────────
+function render(data) {
+  document.getElementById('vid-name').textContent =
+    `${data.meta.video} — ${data.meta.duration_hms} — ${data.meta.resolution}`;
+  document.getElementById('method-badge').textContent = data.meta.method || '';
+
+  const totalV = Object.values(data.violations).reduce((s,v) => s + v.total_count, 0);
+  const totalJ = data.junctions.total_count;
+  const totalVeh = data.vehicles.total_unique;
+  const dur = data.meta.duration_hms;
+
+  const main = document.getElementById('main-content');
+  main.innerHTML = `
+    <!-- METRICS -->
+    <div class="metrics">
+      ${metricCard('Total Violations', totalV, 'Across all 5 categories', '#ef4444')}
+      ${metricCard('Signal Jumping', data.violations.signal_jump.total_count, 'Highest risk category', '#eab308')}
+      ${metricCard('Phone Use', data.violations.phone_use.total_count, 'While driving', '#3b82f6')}
+      ${metricCard('Wrong Side', data.violations.wrong_side.total_count, 'Opposing traffic', '#f97316')}
+      ${metricCard('Junctions', totalJ, 'Detected & classified', '#14b8a6')}
+      ${metricCard('Total Vehicles', totalVeh, 'Unique, de-duplicated', '#4f46e5')}
+      ${metricCard('Duration', dur, data.meta.resolution, '#8b949e')}
+    </div>
+
+    <!-- CHARTS ROW -->
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">Violations by Type</div>
+        <div class="chart-wrap"><canvas id="vio-chart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Vehicle Categories</div>
+        <div class="chart-wrap"><canvas id="veh-chart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Junction Type Breakdown</div>
+        <div class="chart-wrap"><canvas id="junc-chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- DENSITY -->
+    <div class="density-card">
+      <div class="chart-title">Vehicle Density Over Time (vehicles per sampled frame)</div>
+      <div style="position:relative;height:140px;"><canvas id="density-chart"></canvas></div>
+    </div>
+
+    <!-- BOTTOM LOGS -->
+    <div class="bottom-grid">
+      <div class="log-panel" id="violation-log-panel">
+        <div class="log-header">
+          <span class="log-title">Violation Event Log</span>
+          <span class="log-count" id="vlog-count">${totalV} events</span>
+        </div>
+        <div class="filter-bar" id="vio-filters"></div>
+        <div class="log-scroll" id="violation-log"></div>
+      </div>
+      <div class="log-panel">
+        <div class="log-header">
+          <span class="log-title">Junction Log</span>
+          <span class="log-count">${totalJ} detected</span>
+        </div>
+        <div class="log-scroll" id="junction-log"></div>
+      </div>
+    </div>
+  `;
+
+  drawViolationDonut(data.violations);
+  drawVehiclePie(data.vehicles);
+  drawJunctionBar(data.junctions);
+  drawDensity(data.density_timeline);
+  buildViolationLog(data.violations);
+  buildJunctionLog(data.junctions);
+}
+
+function metricCard(label, value, sub, color) {
+  return `<div class="metric-card" style="--c:${color}">
+    <div class="metric-label">${label}</div>
+    <div class="metric-value">${value}</div>
+    <div class="metric-sub">${sub}</div>
+  </div>`;
+}
+
+// ── CHARTS ───────────────────────────────────────────────────────────────────
+const CHART_DEFAULTS = {
+  plugins: { legend: { labels: { color: '#8b949e', font: { size: 11 } } } },
+};
+
+function drawViolationDonut(violations) {
+  const keys = Object.keys(V_COLORS);
+  const labels = keys.map(k => V_COLORS[k].label);
+  const data   = keys.map(k => violations[k]?.total_count || 0);
+  const colors = keys.map(k => V_COLORS[k].hex);
+  const ctx = document.getElementById('vio-chart').getContext('2d');
+  new Chart(ctx, { type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: '#161b22' }] },
+    options: { ...CHART_DEFAULTS, cutout: '65%', maintainAspectRatio: false,
+      plugins: { ...CHART_DEFAULTS.plugins, tooltip: {
+        callbacks: { label: i => ` ${i.label}: ${i.raw}` }
+      }}
+    }
+  });
+}
+
+function drawVehiclePie(vehicles) {
+  const cats = Object.keys(vehicles.categories);
+  const data = cats.map(c => vehicles.categories[c].count);
+  const colors = cats.map(c => CAT_COLORS[c] || '#8b949e');
+  const ctx = document.getElementById('veh-chart').getContext('2d');
+  new Chart(ctx, { type: 'pie',
+    data: { labels: cats, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: '#161b22' }] },
+    options: { ...CHART_DEFAULTS, maintainAspectRatio: false,
+      plugins: { ...CHART_DEFAULTS.plugins, tooltip: {
+        callbacks: { label: i => ` ${i.label}: ${i.raw} (${vehicles.categories[i.label]?.pct}%)` }
+      }}
+    }
+  });
+}
+
+function drawJunctionBar(junctions) {
+  const types = Object.keys(junctions.type_breakdown);
+  const data  = types.map(t => junctions.type_breakdown[t]);
+  const colors= types.map(t => J_COLORS[t]?.hex || '#8b949e');
+  const ctx = document.getElementById('junc-chart').getContext('2d');
+  new Chart(ctx, { type: 'bar',
+    data: { labels: types, datasets: [{ label: 'Count', data, backgroundColor: colors, borderRadius: 6 }] },
+    options: { ...CHART_DEFAULTS, maintainAspectRatio: false, indexAxis: 'y',
+      scales: {
+        x: { grid: { color:'#21262d' }, ticks: { color:'#8b949e' } },
+        y: { grid: { display:false }, ticks: { color:'#8b949e' } },
+      },
+      plugins: { ...CHART_DEFAULTS.plugins, legend: { display: false } }
+    }
+  });
+}
+
+function drawDensity(timeline) {
+  // Downsample to ~200 points for perf
+  const step = Math.max(1, Math.floor(timeline.length / 200));
+  const pts = timeline.filter((_,i) => i % step === 0);
+  const labels = pts.map(p => p.ts_str);
+  const data   = pts.map(p => p.count);
+  const ctx = document.getElementById('density-chart').getContext('2d');
+  new Chart(ctx, { type: 'line',
+    data: { labels, datasets: [{
+      data, fill: true,
+      backgroundColor: 'rgba(79,70,229,0.15)',
+      borderColor: '#4f46e5', borderWidth: 1.5,
+      pointRadius: 0, tension: 0.4,
+    }]},
+    options: { maintainAspectRatio: false,
+      scales: {
+        x: { grid:{color:'#21262d'}, ticks:{color:'#8b949e',maxTicksLimit:10}, display:true },
+        y: { grid:{color:'#21262d'}, ticks:{color:'#8b949e'}, title:{display:true,text:'Vehicles',color:'#8b949e'} },
+      },
+      plugins: { legend:{display:false}, tooltip:{
+        callbacks:{ title: i => i[0].label, label: i => ` ${i.raw} vehicles` }
+      }}
+    }
+  });
+}
+
+// ── LOGS ─────────────────────────────────────────────────────────────────────
+let allVioEvents = [];
+let activeFilter = 'ALL';
+
+function buildViolationLog(violations) {
+  allVioEvents = [];
+  for (const [key, data] of Object.entries(violations)) {
+    for (const inst of data.instances) {
+      allVioEvents.push({ key, label: data.label, ...inst });
+    }
+  }
+  allVioEvents.sort((a,b) => a.timestamp - b.timestamp);
+
+  // Filters
+  const fb = document.getElementById('vio-filters');
+  fb.innerHTML = '';
+  ['ALL', ...Object.keys(V_COLORS)].forEach(k => {
+    const btn = document.createElement('button');
+    btn.className = 'flt-btn' + (k === 'ALL' ? ' active' : '');
+    btn.textContent = k === 'ALL' ? 'All' : V_COLORS[k].label.split(' ')[0];
+    btn.onclick = () => {
+      document.querySelectorAll('.flt-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeFilter = k;
+      renderVioLog();
+    };
+    fb.appendChild(btn);
+  });
+  renderVioLog();
+}
+
+function renderVioLog() {
+  const el = document.getElementById('violation-log');
+  const filtered = activeFilter === 'ALL' ? allVioEvents
+    : allVioEvents.filter(e => e.key === activeFilter);
+  document.getElementById('vlog-count').textContent = `${filtered.length} events`;
+  el.innerHTML = filtered.map(e => {
+    const c = V_COLORS[e.key] || {};
+    const conf = e.conf ? `${(e.conf*100).toFixed(0)}%` : '';
+    return `<div class="log-row" onclick="seekTo(${e.timestamp}, '${e.ts}')">
+      <span class="log-ts">${e.ts}</span>
+      <span class="log-type">${c.label || e.key}</span>
+      <span class="badge ${c.badge || ''}">${conf}</span>
+    </div>`;
+  }).join('') || '<div style="padding:20px;color:var(--muted);text-align:center;">No events for this filter</div>';
+}
+
+function buildJunctionLog(junctions) {
+  const el = document.getElementById('junction-log');
+  el.innerHTML = junctions.instances.map(j => {
+    const c = J_COLORS[j.junction_type] || {};
+    return `<div class="log-row" onclick="seekTo(${j.timestamp}, '${j.ts}')">
+      <span class="log-ts">${j.ts}</span>
+      <span class="log-type">${j.junction_type.replace('_',' ')}</span>
+      <span class="badge ${c.badge || ''}">${j.junction_type.split('_')[0]}</span>
+    </div>`;
+  }).join('') || '<div style="padding:20px;color:var(--muted);text-align:center;">No junctions detected</div>';
+}
+
+// ── SEEK ─────────────────────────────────────────────────────────────────────
+function seekTo(timestamp, ts) {
+  const tip = document.getElementById('seek-tip');
+  tip.textContent = `▶ Seek video to ${ts} (t=${timestamp.toFixed(1)}s)`;
+  tip.style.display = 'block';
+  setTimeout(() => { tip.style.display = 'none'; }, 3000);
+  // If a <video> element is present on the page, seek it
+  const vid = document.querySelector('video');
+  if (vid) { vid.currentTime = timestamp; vid.play(); }
+}
+
+// Auto-load results.json if in same directory
+fetch('results.json')
+  .then(r => r.ok ? r.json() : null)
+  .then(data => { if (data) render(data); })
+  .catch(() => {});
+</script>
+</body>
+</html>
